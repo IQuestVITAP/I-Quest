@@ -21,7 +21,7 @@ app.secret_key = os.getenv("SECRET_KEY", "fallback_secret")
 
 # Mongo config
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-MONGO_DBNAME = os.getenv("MONGO_DBNAME", "ACM")
+MONGO_DBNAME = os.getenv("MONGO_DBNAME", "Iquest")
 
 client = MongoClient(MONGO_URI)
 db = client[MONGO_DBNAME]
