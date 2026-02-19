@@ -258,11 +258,12 @@ def admin_events():
 @admin_required
 def admin_edit_event(event_id):
     try:
-        oid = ObjectId(event_id)
+        oid = ObjectId(event_id)  # Convert event_id to ObjectId
     except Exception:
         flash("Invalid event id.", "error")
         return redirect(url_for('admin_events'))
 
+    # Fetch the existing event from MongoDB
     event = events_collection.find_one({"_id": oid})
     if not event:
         flash("Event not found.", "error")
@@ -271,16 +272,21 @@ def admin_edit_event(event_id):
     if request.method == 'POST':
         event_name = request.form.get('event_name', '').strip()
         require_team_name = request.form.get('require_team_name') == 'on'
+
+        # Handle min_members and max_members
         try:
             min_members = max(1, int(request.form.get('min_members', 1)))
         except ValueError:
             min_members = 1
+
         try:
             max_members = max(min_members, int(request.form.get('max_members', min_members)))
         except ValueError:
             max_members = min_members
+
         active = request.form.get('active') == 'on'
 
+        # Prepare the update data
         update = {
             "event_name": event_name,
             "require_team_name": require_team_name,
@@ -289,14 +295,38 @@ def admin_edit_event(event_id):
             "active": active,
             "updated_at": datetime.utcnow()
         }
+
+        # Log the data being updated (for debugging)
+        app.logger.debug(f"Updating event with ID {event_id}. Data: {update}")
+
+        # Validate event name
+        if not event_name:
+            flash("Event name is required.", "error")
+            return redirect(url_for('admin_edit_event', event_id=event_id))
+
+        # Check if the event name already exists in the database
+        if events_collection.find_one({"event_name": event_name, "_id": {"$ne": oid}}):
+            flash("An event with this name already exists.", "error")
+            return redirect(url_for('admin_edit_event', event_id=event_id))
+
         try:
-            events_collection.update_one({"_id": oid}, {"$set": update})
-            flash("Event updated.", "success")
+            # Perform the update
+            result = events_collection.update_one({"_id": oid}, {"$set": update})
+
+            # Check if the update was successful
+            if result.matched_count == 0:
+                flash("Event not found.", "error")
+            else:
+                flash("Event updated successfully.", "success")
+
         except pymongo_errors.DuplicateKeyError:
-            flash("Event name conflicts with existing event.", "error")
+            # Handle duplicate event name error (unique constraint violation)
+            flash("Event name already exists.", "error")
         except Exception as e:
+            # General error handling
             app.logger.exception("Error updating event")
             flash(f"Error: {e}", "error")
+
         return redirect(url_for('admin_events'))
 
     return render_template('admin_edit_event.html', event=doc_to_json(event))
